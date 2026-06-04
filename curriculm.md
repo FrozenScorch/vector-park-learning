@@ -21,8 +21,7 @@ Engineers or technical analysts joining an enterprise AI platform team. You shou
 | Language | Python 3.11+ | Ecosystem fit for LangChain/LangGraph |
 | Orchestration | LangGraph | Graph-based agent workflows with explicit state |
 | Vector store | PostgreSQL + pgvector | Production-grade, supports hybrid search and metadata filtering |
-| Embedding model | Your choice — curriculum is model-agnostic | See Level 3 for selection guidance |
-| LLM | Your choice — curriculum is model-agnostic | Any OpenAI-compatible or Anthropic API works |
+| LLM + Embeddings | NVIDIA NIM via [build.nvidia.com](https://build.nvidia.com) | Free tier, OpenAI-compatible, works with LangChain out of the box |
 | Frontend | Chainlit | Pre-built chat UI, Python-native, see below |
 | Data source | [NPS API](https://www.nps.gov/subjects/developer/api-documentation.htm) | Free, public, rich structured + unstructured data |
 
@@ -109,20 +108,17 @@ Get the development environment running and make the first NPS API call. Zero AI
 
 ### Setup steps
 
-Use an AI coding assistant (Claude Code, Copilot, etc.) to help scaffold these:
+Follow the setup instructions in the [README](README.md). By the end you should have:
 
-1. **NPS API key** — free at [nps.gov/subjects/developer](https://www.nps.gov/subjects/developer/get-started.htm)
-2. **LLM API key** — whichever provider you choose (Anthropic, OpenAI, etc.)
-3. **Python environment** — `uv` or `venv`, your preference
-4. **PostgreSQL with pgvector** — Docker is the easiest path:
-   ```bash
-   docker run -d --name pgvector \
-     -e POSTGRES_PASSWORD=dev \
-     -p 5432:5432 \
-     pgvector/pgvector:pg16
-   ```
-5. **Python dependencies** — `pip install langchain langgraph chainlit psycopg2-binary pgvector requests`
-6. **Chainlit starter app** — verify the chat UI launches with `chainlit run app.py`
+1. **Python 3.11+** with a virtual environment
+2. **PostgreSQL + pgvector** running in Docker
+3. **NPS API key** — free at [nps.gov/subjects/developer](https://www.nps.gov/subjects/developer/get-started.htm)
+4. **NVIDIA NIM API key** — free at [build.nvidia.com](https://build.nvidia.com) (OpenAI-compatible, works with LangChain)
+5. **Python dependencies** — `pip install langchain langchain-nvidia-ai-endpoints langgraph chainlit psycopg2-binary pgvector requests pydantic python-dotenv`
+6. **Chainlit** launching and echoing messages
+7. **`.env` file** with all keys (and `.gitignore`d)
+
+Use an AI coding assistant (Claude Code, Copilot, etc.) to help scaffold your project directory and verify each step.
 
 ### Project structure
 
@@ -148,7 +144,7 @@ Write a Chainlit handler that takes a park code from the chat input (e.g., `yell
 
 ### Done means
 
-The Chainlit app launches. You can type a park code, see real NPS data come back. Postgres is running with pgvector enabled. Your LLM API key is set in environment variables. Everything is wired and ready for Level 1.
+The Chainlit app launches. You can type a park code, see real NPS data come back. Postgres is running with pgvector enabled. Your NVIDIA NIM API key is set in environment variables. Everything is wired and ready for Level 1.
 
 ---
 
@@ -298,7 +294,7 @@ Consider these factors:
 - Benchmark performance on retrieval tasks (MTEB leaderboard)
 - Whether the model fits your deployment constraints
 
-For this curriculum, any model works. Popular options: OpenAI `text-embedding-3-small`, Voyage AI `voyage-3-lite`, or self-hosted `nomic-embed-text-v1.5`. Pick one and keep it consistent — switching embedding models mid-project means re-embedding everything.
+For this curriculum, we use NVIDIA NIM embedding models via the same `build.nvidia.com` API you set up in Level 0. Options include `nvidia/nv-embedqa-e5-v5` and `nvidia/nv-embed-v2`. These are accessed the same way as the LLM — just a different model name on the same endpoint. Pick one and keep it consistent — switching embedding models mid-project means re-embedding everything.
 
 ### Pipeline
 
