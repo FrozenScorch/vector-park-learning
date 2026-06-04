@@ -1,656 +1,797 @@
-# Practical GenAI Implementation Curriculum
+# GenAI Implementation Curriculum: National Parks Field Guide
 
-Audience: new joiners with little or no GenAI implementation experience.
+## What this is
 
-Goal: move from basic LLM usage to practical enterprise-style GenAI implementation: summarization, extraction, RAG ingestion, RAG orchestration, entry-level agents, and multi-agent orchestration.
+A hands-on curriculum that teaches the full implementation ladder from single LLM calls to multi-agent orchestration. Learners build one system — a National Parks Field Guide Copilot — over 8 weeks, using public National Park Service data.
 
-This is not a research ML curriculum. The goal is to build applied judgment: what pattern to use, how to structure inputs/outputs, how to evaluate results, and how to reason about production constraints.
+The theme is parks. The point is not parks. The point is learning how structured and unstructured data become reliable AI workflows.
+
+```text
+setup → single inference → document understanding → ingestion substrate → retrieval mechanics → RAG orchestration → ReAct agent → planner-executor workflow agent → multi-agent orchestration → production thinking
+```
+
+## Who this is for
+
+Engineers or technical analysts joining an enterprise AI platform team. You should be comfortable reading and writing Python, but you do not need prior ML or LLM experience. Everything else is taught in order.
+
+## Tech stack
+
+| Layer | Tool | Why |
+|---|---|---|
+| Language | Python 3.11+ | Ecosystem fit for LangChain/LangGraph |
+| Orchestration | LangGraph | Graph-based agent workflows with explicit state |
+| Vector store | PostgreSQL + pgvector | Production-grade, supports hybrid search and metadata filtering |
+| Embedding model | Your choice — curriculum is model-agnostic | See Level 3 for selection guidance |
+| LLM | Your choice — curriculum is model-agnostic | Any OpenAI-compatible or Anthropic API works |
+| Frontend | Chainlit | Pre-built chat UI, Python-native, see below |
+| Data source | [NPS API](https://www.nps.gov/subjects/developer/api-documentation.htm) | Free, public, rich structured + unstructured data |
+
+## The data source
+
+The [National Park Service API](https://developer.nps.gov/api/v1/) is the backbone of this curriculum. It provides both structured data (park codes, coordinates, fee amounts, activity categories) and unstructured data (park descriptions, alert text, article bodies, tour narratives). That mix is what makes it a realistic stand-in for enterprise data.
+
+### NPS API endpoint inventory
+
+| Endpoint | Data type | What it returns |
+|---|---|---|
+| `/parks` | structured + unstructured | Location, contact, hours, fees, descriptions, photos, activities, topics |
+| `/alerts` | structured + unstructured | Hazard/closure/caution announcements per park |
+| `/campgrounds` | structured + unstructured | Location, fees, hours, amenities, accessibility, descriptions |
+| `/visitorcenters` | structured + unstructured | Location, hours, services, descriptions |
+| `/events` | structured + unstructured | Date, time, fee, description of park events |
+| `/thingstodo` | mostly unstructured | Recommended activities with descriptions, duration, season |
+| `/articles` | unstructured | Titles, images, descriptions about NPS features |
+| `/newsreleases` | unstructured | Title, abstract, link to park news |
+| `/places` | structured + unstructured | Named places within parks with descriptions |
+| `/tours` | unstructured | Tours with stops at places, campgrounds, visitor centers |
+| `/activities` | structured | Activity categories (hiking, stargazing, etc.) |
+| `/activities/parks` | structured | Which parks map to which activities |
+| `/topics` | structured | Topic categories (Civil War, wildlife, etc.) |
+| `/topics/parks` | structured | Which parks map to which topics |
+| `/amenities` | structured | Amenity types available |
+| `/amenities/parksplaces` | structured | Places with specific amenities |
+| `/amenities/parksvisitorcenters` | structured | Visitor centers with specific amenities |
+| `/feespasses` | structured | Entrance fees and passes |
+| `/parkinglots` | structured | Parking lot info |
+| `/passportstamplocations` | structured | Passport stamp locations |
+| `/multimedia/audio` | media | Audio files |
+| `/multimedia/videos` | media | Videos |
+| `/multimedia/galleries` | media | Photo galleries |
+| `/webcams` | media | Live webcams |
+| `/lessonplans` | unstructured | Educational lesson plans |
+| `/mapdata/parkboundaries` | geospatial | GeoJSON park boundaries |
+
+Common query parameters across all endpoints: `parkCode`, `stateCode`, `limit`, `start` (0-based), `q`, `fields`.
+
+Not every endpoint is used at every level. The curriculum introduces them progressively.
+
+## The starter UI
+
+Learners should not spend time building a frontend. This curriculum uses a **Chainlit chat interface** that learners wire their backend into at each level.
+
+Why Chainlit:
+
+- Pure Python — no JavaScript build step
+- Native LangGraph integration
+- Handles streaming responses out of the box
+- Manages conversation history (solves multi-turn)
+- Displays intermediate agent steps (invaluable for debugging Levels 5–7)
+- Open source
+
+The UI stays roughly the same throughout. What changes at each level is what happens behind the chat input — the underlying APIs, retrieval strategies, and orchestration logic. This mirrors how real products work: the interface is stable, the capabilities grow.
+
+### How the UI maps to each level
+
+| Level | Chainlit interaction model |
+|---|---|
+| 0 | Type a park code, see raw NPS API response — proof that plumbing works |
+| 1 | Type or paste text, get back a summary / rewrite / classification / extraction |
+| 2 | Send a park description or alert, get back structured JSON |
+| 3 | **Not through Chainlit** — ingestion runs as a backend script from the terminal |
+| 4 | Ask questions about parks, get cited answers from the vector store |
+| 5 | Same as 4, but the system shows which retrieval path it chose |
+| 6A | Ask tasks, watch the agent reason through tool calls in the intermediate steps panel |
+| 6B | Request a report, review the proposed plan, approve it, receive the final output |
+| 7 | Same as 6B, but multiple agents appear in the step trace |
+| 8 | Discussion-level — production readiness exercises |
 
 ---
 
-## Final Capstone
-
-Build a small **GenAI Use Case Implementation Lab**.
-
-The app should let a user choose between several use case types:
-
-1. **Inference-only summarization**
-2. **Structured extraction from documents**
-3. **RAG Q&A over ingested documents**
-4. **RAG orchestration with routing and citations**
-5. **Single-agent workflow with tools**
-6. **Simple multi-agent workflow**
-
-Each module should produce a working feature and a short technical write-up.
-
----
-
-## Level 0: Mental Model — What Are We Building?
+## Level 0 — Setup and First API Call
 
 ### Objective
-Understand the major GenAI application patterns before writing code.
 
-### Core concepts
+Get the development environment running and make the first NPS API call. Zero AI. Just plumbing.
 
-- LLM call: one prompt in, one answer out.
-- Inference task: summarize, classify, rewrite, extract, judge, transform.
-- Structured output: model returns JSON matching a schema.
-- RAG: retrieve relevant context before generation.
-- Workflow: multi-step process where AI helps complete a business task.
-- Agent: LLM decides among tools or steps based on state.
-- Multi-agent system: multiple specialized components coordinate on a task.
+### NPS API endpoints used
+
+`/parks` — fetch a single park to verify connectivity.
+
+### Setup steps
+
+Use an AI coding assistant (Claude Code, Copilot, etc.) to help scaffold these:
+
+1. **NPS API key** — free at [nps.gov/subjects/developer](https://www.nps.gov/subjects/developer/get-started.htm)
+2. **LLM API key** — whichever provider you choose (Anthropic, OpenAI, etc.)
+3. **Python environment** — `uv` or `venv`, your preference
+4. **PostgreSQL with pgvector** — Docker is the easiest path:
+   ```bash
+   docker run -d --name pgvector \
+     -e POSTGRES_PASSWORD=dev \
+     -p 5432:5432 \
+     pgvector/pgvector:pg16
+   ```
+5. **Python dependencies** — `pip install langchain langgraph chainlit psycopg2-binary pgvector requests`
+6. **Chainlit starter app** — verify the chat UI launches with `chainlit run app.py`
+
+### Project structure
+
+```text
+field-guide-copilot/
+├── app.py                  # Chainlit entry point
+├── backend/
+│   ├── chains/             # LangGraph graphs per level
+│   ├── ingestion/          # Level 3 pipeline
+│   ├── retrieval/          # Level 4 retrieval strategies
+│   ├── agents/             # Level 6+ agent definitions
+│   ├── tools/              # Tool functions for agents
+│   └── evals/              # Eval scripts and golden datasets
+├── data/                   # Raw + processed NPS data
+├── prompts/                # Prompt templates
+├── tests/                  # Unit and integration tests
+└── docs/                   # Your notes and diagrams
+```
 
 ### Exercise
-Take 10 example use cases and classify each as:
 
-- inference-only
-- structured extraction
-- basic RAG
-- RAG workflow
-- tool-using agent
-- multi-agent orchestration
+Write a Chainlit handler that takes a park code from the chat input (e.g., `yell`), calls `GET /parks?parkCode=yell`, and displays the park name, description, and state in the chat response. No LLM involved. Just API → UI.
 
-### Example use cases
+### Done means
 
-- Summarize a meeting transcript.
-- Extract fields from an invoice.
-- Answer questions from a policy document.
-- Draft an implementation plan from an intake request.
-- Search docs, create tasks, and draft an email.
-- Route a user request to a research agent, document agent, or calculation agent.
-
-### Completion criteria
-The learner can explain why not every GenAI app is a chatbot.
+The Chainlit app launches. You can type a park code, see real NPS data come back. Postgres is running with pgvector enabled. Your LLM API key is set in environment variables. Everything is wired and ready for Level 1.
 
 ---
 
-## Level 1: Generic LLM Use Case — Prompt, Response, and Quality
+## Level 1 — Generic Inference
 
 ### Objective
-Build a simple LLM-powered app that performs one useful task without RAG or agents.
 
-### Build
-Create a small CLI or web page called `genai_basic_task`.
+Build a single-call LLM feature. No RAG. No vector DB. No agents.
 
-Input:
+### NPS API endpoints used
 
-```text
-Paste messy text here.
-Choose task: summarize / rewrite / classify / extract action items.
-```
+**`/parks`** — fetch 3–5 parks. Grab the `description` and `weatherInfo` fields. That's your input text.
 
-Output:
+### What learners build
 
-```text
-Clean result from the LLM.
-```
+The Chainlit app now routes user input to an LLM. Learners implement four inference modes over real park text:
 
-### Concepts to learn
+- Summarize Yellowstone's overview for a first-time visitor.
+- Rewrite a dense Denali weather warning for a family audience.
+- Classify a visitor question into categories: trip planning, safety/alerts, camping, hiking, accessibility, fees/logistics, not enough information.
+- Extract action items from a park operations-style note.
 
-- system vs. user instructions
-- task framing
-- output constraints
-- temperature
-- token limits
-- failure modes
-- prompt injection basics
-- when a prompt is too vague
+The NPS API is just the data source here. Learners are not doing anything sophisticated with it — just `requests.get()`, grab the text, pass it to the LLM.
 
-### Required tasks
+### What learners should understand
 
-Implement these four modes:
+- Prompt framing and system vs. user instructions
+- Temperature and output length
+- Basic hallucination risks
+- Streaming responses — why and how (Chainlit handles this, but learners should understand SSE)
+- Why a chatbot response is not automatically workflow-ready
+- The difference between "the model sounds right" and "the output is correct"
 
-1. Summarize
-2. Rewrite for an executive audience
-3. Classify into categories
-4. Extract action items
+### How to evaluate
 
-### Evaluation
-Create 10 test inputs and expected outputs.
+Evaluation starts here, not at Level 8. At this level, keep it simple:
 
-For each output, rate:
+- Build a small golden dataset: 10–15 input texts with expected outputs (or expected properties of outputs).
+- Write assertions: does the classification output one of the valid categories? Does the summary stay under the target length? Does the extraction produce valid JSON?
+- Run the dataset through your pipeline. Track pass/fail. This is your first eval harness.
 
-- correctness
-- completeness
-- format adherence
-- hallucination risk
+The habit matters more than the framework. If learners build evals from Level 1, they will never ship something they cannot measure.
 
-### Completion criteria
-The learner can build a basic LLM feature and explain how they know it works.
+### Done means
+
+The Chainlit app can take raw text and return a useful, constrained answer for at least 4 inference modes: summary, rewrite, classification, action-item extraction. A basic eval harness exists and passes.
 
 ---
 
-## Level 2: Inference Summarization and Structured Extraction
+## Level 2 — Document Understanding and Structured Extraction
 
 ### Objective
-Move from free-text answers to structured, usable outputs.
 
-### Build
-Create `document_inference_lab`.
+Move from "the model wrote text" to "the model produced usable structured data."
 
-Input:
+This is **not ingestion yet**. This level works on one document or pasted text at a time. No embeddings, no vector DB.
 
-- pasted text or uploaded `.txt` / `.md` file
-- selected task type
+### NPS API endpoints used
+
+**`/parks`**, **`/alerts`**, **`/campgrounds`**, **`/visitorcenters`**, **`/events`**
+
+Now the inputs get more varied. Learners fetch real data from each endpoint and run extraction on the unstructured text fields. The key insight: each NPS endpoint returns a mix of structured fields (lat/lon, parkCode, fees as numbers) and unstructured fields (description, weatherInfo, directionsInfo). The LLM's job is to extract structure from the unstructured parts, not duplicate what the API already gives you.
+
+### Example park tasks
+
+Input: park description, alert text, campground description, visitor-center page, event description.
 
 Output:
-
-- summary
-- key facts
-- open questions
-- structured JSON
-
-### Example schema
 
 ```json
 {
   "summary": "string",
   "key_facts": ["string"],
-  "risks": ["string"],
-  "action_items": [
+  "visitor_risks": [
     {
-      "owner": "string | unknown",
-      "task": "string",
-      "due_date": "string | unknown",
-      "confidence": "low | medium | high"
+      "risk": "string",
+      "severity": "low | medium | high | unknown",
+      "evidence": "string"
     }
   ],
-  "open_questions": ["string"]
+  "logistics": {
+    "fees": ["string"],
+    "locations": ["string"],
+    "hours": ["string"],
+    "reservation_notes": ["string"]
+  },
+  "open_questions": ["string"],
+  "confidence": "low | medium | high"
 }
 ```
 
-### Concepts to learn
+### What learners should understand
 
-- structured outputs
-- schemas
-- validation
-- confidence fields
-- unknown/null handling
-- citations vs. unsupported claims
-- deterministic formatting
+- Structured output schemas and JSON mode
+- Validation (schema validation, not just "looks right")
+- Unknown/null handling — the model must say "I don't know" as structured data
+- Confidence fields and evidence snippets
+- Unsupported claims vs. supported claims
+- The difference between summarization and extraction
+- Why structured extraction is a bridge to workflows
 
-### Exercise
-Use the same input text and compare:
+### How to evaluate
 
-1. free-form summary
-2. bullet summary
-3. structured JSON extraction
-4. extraction with confidence and open questions
+- Schema validation: does every output conform to the JSON schema? Use Pydantic or jsonschema.
+- Fact-checking: given a source document with known facts, does the extraction include them? Does it invent any?
+- Build 5–10 test cases with known-good extractions. Automate the comparison.
 
-### Completion criteria
-The learner understands that GenAI output usually needs structure before it can power a workflow.
+### Done means
+
+Given a single text input, the system produces valid JSON, does not invent missing facts, and handles unknowns gracefully. Schema validation passes on all test cases.
 
 ---
 
-## Bridge A: The Missing Middle Between Summarization and RAG
-
-Most beginners jump from “summarize this” to “chat with documents.” That skips important steps.
-
-Before RAG, they need to understand:
-
-### 1. Document parsing
-Different file types produce different text quality.
-
-Examples:
-
-- PDF text may be out of order.
-- Tables may be mangled.
-- Slides may have sparse text.
-- Scanned docs may require OCR.
-- Excel files have sheets, columns, and formulas.
-
-### 2. Metadata
-Every chunk should carry useful metadata:
-
-```json
-{
-  "source_file": "lease.pdf",
-  "page": 3,
-  "section": "Utilities",
-  "created_at": "2026-06-01",
-  "document_type": "lease"
-}
-```
-
-### 3. Chunking
-Chunking is not arbitrary splitting. Bad chunks produce bad answers.
-
-Learners should test:
-
-- fixed-size chunks
-- heading-aware chunks
-- paragraph chunks
-- table-aware chunks
-- chunks with overlap
-
-### 4. Retrieval quality
-RAG can fail before the LLM ever answers.
-
-Common failures:
-
-- right document, wrong chunk
-- right chunk, poor answer
-- no retrieved evidence
-- outdated evidence
-- conflicting documents
-- user lacks permission to source
-
-### 5. Eval set
-A RAG system needs test questions with expected evidence.
-
-Example:
-
-```json
-{
-  "question": "Who pays for utilities?",
-  "expected_answer": "Tenant pays electric; gas is included.",
-  "expected_source": "lease.pdf page 4"
-}
-```
-
----
-
-## Level 3: RAG Ingestion
+## Level 3 — RAG Ingestion Substrate
 
 ### Objective
-Build the ingestion side of a RAG system before building chat.
 
-### Build
-Create `rag_ingestion_lab`.
+Build the document ingestion pipeline. This is where learners build the substrate that makes RAG possible.
 
-It should ingest:
+**This level runs from the terminal, not through Chainlit.** Ingestion is a backend pipeline. You would not type "ingest 400 parks" into a chat window.
 
-- `.txt`
-- `.md`
-- `.pdf`
-- `.docx` if possible
-- `.csv` or `.xlsx` as stretch
+### NPS API endpoints used
 
-Pipeline:
+**`/parks`**, **`/alerts`**, **`/campgrounds`**, **`/visitorcenters`**, **`/events`**, **`/thingstodo`**, **`/articles`**, **`/newsreleases`**, **`/places`**, **`/tours`**
+
+This is the big fetch. Learners consume the bulk of the NPS API and load it into pgvector. The structured endpoints (`/activities`, `/topics`, `/activities/parks`, `/topics/parks`) become categorical metadata for filtering — they are not embedded.
+
+### Understanding embeddings
+
+Before building the pipeline, learners must understand what embeddings are and why they work.
+
+**Core concepts:**
+
+- An embedding is a dense vector (list of numbers) that captures the semantic meaning of text. Similar meanings produce similar vectors.
+- Cosine similarity measures how close two vectors are. High similarity = semantically related.
+- Embedding models are separate from LLMs. They are trained specifically for this task.
+- Dimensionality matters: higher dimensions capture more nuance but cost more storage and compute. Common ranges: 384, 768, 1024, 1536.
+- Embeddings are only as good as the text you feed them. Garbage in, garbage out — which is why chunking and preprocessing matter.
+
+**Choosing an embedding model:**
+
+Consider these factors:
+
+- Dimension size vs. retrieval quality trade-off
+- Whether the model supports instructions/task prefixes (e.g., "search_document:" vs. "search_query:")
+- Open-source vs. API-hosted (cost, latency, data residency)
+- Benchmark performance on retrieval tasks (MTEB leaderboard)
+- Whether the model fits your deployment constraints
+
+For this curriculum, any model works. Popular options: OpenAI `text-embedding-3-small`, Voyage AI `voyage-3-lite`, or self-hosted `nomic-embed-text-v1.5`. Pick one and keep it consistent — switching embedding models mid-project means re-embedding everything.
+
+### Pipeline
 
 ```text
-upload file
-→ parse text
-→ clean text
-→ split into chunks
-→ attach metadata
-→ generate embeddings
-→ store chunks in vector database
+fetch/load → parse → normalize → deduplicate → chunk → enrich metadata → embed selected text → store documents/chunks → run ingestion evals
 ```
 
-### Data model
+### What to vectorize
+
+Do **not** blindly vectorize every raw JSON field.
+
+Vectorize text that helps semantic retrieval:
+
+- park full name and description
+- designation
+- activities/topics as text
+- alert title + description
+- article title + body
+- campground and visitor center descriptions
+- accessibility notes
+- fees/reservation notes
+- safety/hazard language
+- thingstodo descriptions
+- tour narratives
+- place descriptions
+- generated searchable summary if useful
+
+Do **not** primarily rely on embeddings for:
+
+- latitude/longitude, state codes, park codes
+- fee amounts, dates, exact names, IDs, URLs
+- event start/end times, boolean fields
+- activity and topic category IDs
+
+Those belong in metadata or structured filters.
+
+### Metadata to preserve
+
+Every chunk should include:
 
 ```json
 {
   "document_id": "string",
-  "filename": "string",
-  "file_type": "string",
   "chunk_id": "string",
-  "chunk_text": "string",
-  "metadata": {
-    "page": "number | null",
-    "section": "string | null",
-    "source": "string"
-  },
-  "embedding": "vector"
+  "source_name": "National Park Service",
+  "source_url": "string",
+  "retrieved_at": "YYYY-MM-DD",
+  "content_type": "park | alert | campground | visitor_center | event | article | thingstodo | place | tour | news_release",
+  "park_code": "string | null",
+  "park_name": "string | null",
+  "states": ["string"],
+  "activities": ["string"],
+  "topics": ["string"],
+  "lat": "number | null",
+  "lon": "number | null",
+  "date_start": "string | null",
+  "date_end": "string | null",
+  "alert_category": "string | null",
+  "page_or_section": "string | null"
 }
 ```
 
-### Concepts to learn
+### Chunking strategies to teach
 
-- parsing
-- normalization
-- chunking
-- embeddings
-- vector search
-- metadata filters
-- re-ingestion
-- deduplication
-- source traceability
+Start simple, then compare:
 
-### Required tests
+1. Fixed-size chunks with overlap
+2. Paragraph-aware chunks
+3. Heading/section-aware chunks
+4. Record-aware chunks for JSON/API objects
+5. Parent-child chunks: child chunk for retrieval, parent document for final context
+6. Summary chunk + source chunks: summary helps retrieval, source chunks preserve evidence
 
-- Upload a simple text document.
-- Upload a long document.
-- Confirm chunks are created.
-- Confirm metadata is preserved.
-- Confirm semantic search returns relevant chunks.
+### Introducing observability
 
-### Completion criteria
-The learner can explain how documents become searchable context.
+Start logging now, not at Level 8. At minimum:
+
+- Log every embedding call: input text length, model used, latency
+- Log chunk counts and metadata completeness per ingestion run
+- Log deduplication decisions
+- Store ingestion run metadata (timestamp, source count, chunk count, errors)
+
+Use Python logging or a simple structured logger. The point is to build the habit. At later levels this expands into full tracing.
+
+### How to evaluate
+
+- **Chunk quality**: manually inspect 20+ chunks. Are they coherent? Do they split mid-sentence? Do parent-child relationships hold?
+- **Metadata completeness**: what percentage of chunks have all expected metadata fields populated?
+- **Embedding sanity check**: pick 5 known-similar documents (e.g., campground descriptions from parks in the same state). Are their embeddings close (cosine similarity > 0.8)? Pick 5 known-unrelated documents. Are they distant?
+- **Deduplication**: ingest the same data twice. Does the system handle it?
+- **Retrieval sanity check**: run 10 natural-language queries against the vector store. Do the top-5 results make sense? This is a preview of Level 4.
+
+### Done means
+
+The system can ingest a small corpus and pass tests for: chunks created, metadata preserved, duplicate handling, semantic search sanity check, metadata filter sanity check, source traceability. Observability logs exist and are useful.
 
 ---
 
-## Level 4: Basic RAG Q&A
+## Level 4 — Retrieval Mechanics and Basic RAG
 
 ### Objective
-Build a basic Q&A system over ingested documents.
 
-### Build
-Create `basic_rag_qa`.
+Build cited Q&A over the ingested corpus, while teaching retrieval mechanics. This is still not a general agent. It is a retrieval + answer pipeline.
 
-Flow:
+**Back to Chainlit.** Users ask questions in chat, the system retrieves from the vector store and streams a cited answer back.
+
+### NPS API endpoints used
+
+**None directly** — this level works entirely against the ingested corpus from Level 3.
+
+### Retrieval modes to include
+
+Minimum:
+
+1. Vector search (semantic similarity)
+2. Keyword search (BM25 or PostgreSQL full-text search)
+3. Metadata filtering (exact match on structured fields)
+4. Hybrid search (combine vector + keyword + filters)
+5. Multi-query / RAG fusion
+6. Optional reranking
+
+### RAG Fusion
+
+User asks:
+
+> Which Utah parks are good for hiking but may have safety alerts this weekend?
+
+System generates several retrieval queries:
 
 ```text
-user question
-→ embed question
-→ retrieve top-k chunks
-→ send chunks + question to LLM
-→ answer with citations
+Utah national parks hiking
+current safety alerts Utah parks
+campgrounds and hiking national parks Utah
+visitor warnings trail closures Utah national parks
 ```
 
-### Required output format
+Then it retrieves for each query, merges/ranks results, optionally reranks, and passes the best evidence to the answer step.
+
+### Hybrid search
+
+Use hybrid retrieval when the query needs both meaning and exact filters. The NPS data makes this obvious:
+
+- semantic: "good for a quiet beginner camping trip"
+- exact metadata: `stateCode = UT`, `activities contains Camping`
+- date/event filter: this weekend
+- content type filter: `alert` or `campground`
+
+### Multi-turn conversation
+
+This is where conversation memory enters the system.
+
+The Chainlit frontend maintains a conversation thread. The backend must now handle follow-up questions:
+
+- User: "Tell me about Zion." → retrieval + answer
+- User: "What about camping there?" → the system must understand "there" = Zion
+
+Approaches to teach:
+
+1. **Conversation buffer**: pass the last N messages as context to the LLM alongside retrieved documents. Simple, effective, and the right starting point.
+2. **Query rewriting**: use the LLM to rewrite the follow-up as a standalone query before retrieval. "What about camping there?" → "Camping options at Zion National Park."
+3. **Conversation summary**: for longer conversations, summarize earlier turns instead of passing them raw.
+
+Start with approach 1, then add approach 2 when learners see why naive follow-ups retrieve poorly.
+
+### Output schema
 
 ```json
 {
   "answer": "string",
   "citations": [
     {
-      "source_file": "string",
-      "page": "number | null",
-      "chunk_id": "string"
+      "source_url": "string",
+      "document_id": "string",
+      "chunk_id": "string",
+      "reason_used": "string"
     }
   ],
+  "retrieval_debug": {
+    "query_type": "vector | keyword | hybrid | rag_fusion",
+    "filters_used": {},
+    "top_k": 5,
+    "rewritten_query": "string | null"
+  },
   "confidence": "low | medium | high",
   "missing_information": ["string"]
 }
 ```
 
-### Concepts to learn
+### How to evaluate
 
-- top-k retrieval
-- context windows
-- citation formatting
-- grounded answers
-- refusing when evidence is missing
-- answer synthesis
-- retrieval vs. generation failures
+- **Retrieval quality**: build a golden dataset of 20+ questions with known-relevant document IDs. Measure precision@5 and recall@5. How often is the correct document in the top 5?
+- **Answer quality**: does the answer use only retrieved evidence? Does it cite correctly? Does it refuse when evidence is insufficient?
+- **Retrieval strategy comparison**: run the same queries through vector-only, keyword-only, and hybrid. Compare results. This teaches learners *why* hybrid exists, not just *that* it exists.
+- **Multi-turn**: test 5+ conversation threads where follow-up questions reference prior context. Does the system resolve references correctly?
 
-### Required behavior
+### Done means
 
-The assistant must say it does not know when retrieved context is insufficient.
-
-### Completion criteria
-The learner can distinguish between “the model knows” and “the system retrieved evidence.”
+The system can answer with citations, refuse insufficient-evidence questions, explain which retrieval strategy was used, and handle multi-turn follow-ups. Retrieval evals exist and show measurable quality.
 
 ---
 
-## Bridge B: The Missing Middle Between Basic RAG and RAG Orchestration
-
-Basic RAG retrieves every time. Real systems need more control.
-
-Teach these concepts before orchestration:
-
-### 1. Query understanding
-The system should classify the user request.
-
-Examples:
-
-- answer from documents
-- summarize a document
-- compare documents
-- extract fields
-- ask clarification
-- no retrieval needed
-
-### 2. Retrieval strategy selection
-Different questions need different strategies.
-
-Examples:
-
-- semantic search
-- keyword search
-- metadata-filtered search
-- document-specific search
-- multi-query expansion
-- reranking
-
-### 3. Context assembly
-The system must choose what evidence enters the final prompt.
-
-Bad context assembly causes hallucination or irrelevant answers.
-
-### 4. Evidence review
-Before answering, the system should check:
-
-- Do we have enough evidence?
-- Are sources conflicting?
-- Are citations specific?
-- Is the answer overclaiming?
-
-### 5. Response type selection
-Not every answer should be prose.
-
-Possible outputs:
-
-- direct answer
-- table
-- checklist
-- JSON
-- draft email
-- implementation plan
-- clarification question
-
----
-
-## Level 5: RAG Orchestration
+## Level 5 — RAG Orchestration / Controlled Agentic RAG
 
 ### Objective
-Build a RAG system that chooses the right path instead of blindly retrieving.
 
-### Build
-Create `rag_orchestrator`.
+Build a LangGraph graph that chooses the right retrieval and answer path. This is "agentic-ish RAG," but it should **not** be a free-form ReAct loop yet.
 
-Flow:
+### NPS API endpoints used
 
-```text
-user request
-→ classify intent
-→ choose retrieval strategy
-→ retrieve evidence
-→ review evidence
-→ synthesize answer
-→ return citations + limitations
-```
+**None directly** — still works against the ingested corpus.
 
-### Intents to support
+The NPS data's variety of content types (parks, alerts, campgrounds, articles, tours, thingstodo) is what makes routing non-trivial. Different intents need different content types, and the orchestrator must choose.
 
-1. Direct answer from docs
-2. Summarize a specific document
-3. Compare two documents
-4. Extract structured fields
-5. Ask a clarifying question
-6. Refuse / insufficient evidence
+### Why this is not Level 6
 
-### Suggested internal components
+Level 5 is controlled orchestration:
 
 ```text
-intent_classifier
-query_planner
-retriever
-reranker_or_filter
-context_builder
-evidence_reviewer
-answer_generator
+classify intent → choose retrieval plan → retrieve → review evidence → synthesize → return
 ```
 
-### Concepts to learn
+The model may help classify or plan retrieval, but it is not repeatedly deciding arbitrary tool calls.
 
-- orchestration graph
-- routing
-- state object
-- retrieval planning
-- evidence gating
-- structured response types
-- graceful failure
+### Supported intents
 
-### Completion criteria
-The learner can explain why orchestration is more reliable than one giant prompt.
+- Direct answer with no retrieval
+- Answer from documents
+- Summarize a specific document
+- Compare parks
+- Extract structured fields
+- Generate a table
+- Ask clarifying question
+- Insufficient evidence / refuse
+- Route to workflow agent if the task needs multiple tools
+
+### Example request
+
+> Compare Yosemite, Zion, and Acadia for a family camping trip and include any safety issues.
+
+Orchestrator behavior:
+
+1. Classify as compare + safety/logistics
+2. Use metadata filters for park codes
+3. Retrieve descriptions, campgrounds, alerts
+4. Review evidence for missing facts
+5. Synthesize table with citations
+6. List missing info
+
+### Chainlit interaction
+
+In the chat UI, Chainlit's intermediate steps panel shows the orchestration path: which intent was classified, which retrieval strategy was selected, how many chunks were retrieved. Learners should see the routing decision, not just the final answer.
+
+### LangGraph implementation note
+
+This is where LangGraph's value becomes concrete. The orchestration graph should have explicit nodes for intent classification, retrieval planning, retrieval execution, evidence review, and synthesis. Edges between nodes should be conditional on the classified intent. This is not a linear chain — it is a graph with branching paths.
+
+Learners should be able to visualize their graph and explain why each node exists.
+
+### How to evaluate
+
+- **Routing accuracy**: given 20+ queries with known intents, does the orchestrator classify and route correctly?
+- **Path explanation**: can the system explain which path it took and why?
+- **Comparison with Level 4**: run the same queries through Level 4 (basic RAG) and Level 5. Where does orchestration improve results? Where doesn't it matter?
+
+### Done means
+
+The system does not retrieve blindly. It chooses a path and can explain its path. Routing evals show measurable improvement over naive retrieval.
 
 ---
 
-## Level 6: Entry-Level Agents
+## Level 6A — ReAct Single Agent
 
 ### Objective
-Build an agent that can use tools, but keep the scope narrow.
 
-### Build
-Create `single_agent_workflow`.
+Introduce a narrow tool-using agent. The agent can reason step-by-step and choose tools, but the scope is constrained.
 
-The agent should complete a simple task using tools.
+### NPS API endpoints used
 
-Example task:
+**`/parks`**, **`/alerts`**, **`/campgrounds`**, **`/visitorcenters`** — **live API calls as tools**
 
-> “Given this intake request, classify the use case, search the uploaded docs, identify missing information, and draft a follow-up email.”
+This is where NPS API calls re-enter the system as real-time tools alongside the vector store. The agent decides: do I search my ingested corpus, or do I call the live API for fresh data? Alerts are the clearest case — the ingested alerts might be stale, but `GET /alerts?parkCode=yell` gives you what's active right now.
+
+### What learners should understand
+
+This is where function calling / tool use becomes explicit.
+
+- The LLM does not "run" tools. It decides which tool to call and with what arguments. Your code runs the tool and returns the result.
+- ReAct = Reason + Act. The agent thinks about what to do, acts (calls a tool), observes the result, and decides the next step.
+- This is a loop, and loops need exit conditions.
+- Tool schemas must be explicit and well-documented — the LLM can only use tools it understands.
 
 ### Tools
 
-Implement simple local tools:
+The tool set maps directly to NPS API endpoints plus the vector store:
 
-- `search_documents(query)`
-- `extract_fields(document_id, schema)`
-- `create_task(title, owner, due_date)`
-- `draft_email(recipient, subject, body)`
-- `calculator(expression)`
+```python
+search_documents(query, filters)      # vector store from Level 3
+get_park_details(park_code)           # GET /parks?parkCode=X
+get_alerts(park_code)                 # GET /alerts?parkCode=X
+get_campgrounds(park_code)            # GET /campgrounds?parkCode=X
+get_visitor_centers(park_code)        # GET /visitorcenters?parkCode=X
+calculator(expression)                # simple math
+draft_note(title, body)               # compose a visitor note
+```
 
-### Concepts to learn
+### Chainlit interaction
 
-- tool definitions
-- tool inputs and outputs
-- tool selection
-- action planning
-- state updates
-- human approval gates
-- tool failure handling
-- excessive agency risk
+Chainlit's intermediate steps panel shows each tool call as the agent makes it: the reasoning, the tool invoked, the arguments, and the observation. This is the most visually informative level — learners watch the agent think.
 
-### Hard rule
-The agent should not send anything, delete anything, or modify external systems without human approval.
+### Example tasks
 
-### Completion criteria
-The learner understands that agents are not magic. They are controlled workflows where an LLM chooses steps and tools.
+- "Find parks in Arizona with hiking and current alerts."
+- "Look up campgrounds near Grand Canyon and summarize reservation concerns."
+- "Search the docs for accessibility notes and draft a short visitor note."
+
+### Hard constraints
+
+- Max tool calls per turn (e.g., 8)
+- Tool schemas are explicit
+- No external writes without approval
+- Final answer must cite tool evidence
+- The agent must stop if evidence is insufficient
+
+### How to evaluate
+
+- **Task completion**: given 10 tasks with known answers, does the agent complete them correctly?
+- **Tool efficiency**: how many tool calls does it take? Are there unnecessary calls?
+- **Constraint adherence**: does it respect the max tool call limit? Does it stop when evidence is insufficient?
+- **Failure modes**: give it a question no tool can answer. Does it fail gracefully?
+
+### Done means
+
+Learners understand ReAct as tool selection + observation loops, not magic autonomy. The agent completes tasks within constraints and fails gracefully.
 
 ---
 
-## Bridge C: The Missing Middle Between Single-Agent and Multi-Agent
-
-Multi-agent systems add complexity. Do not introduce them until learners understand why one agent is insufficient.
-
-Teach these concepts first:
-
-### 1. Separation of responsibilities
-Good multi-agent design starts with clear roles.
-
-Bad:
-
-```text
-research_agent, smart_agent, helper_agent
-```
-
-Better:
-
-```text
-intake_analyst
-retrieval_specialist
-risk_reviewer
-implementation_planner
-final_synthesizer
-```
-
-### 2. Shared state
-Agents need a common state object, not random chat messages.
-
-Example:
-
-```json
-{
-  "user_request": "string",
-  "use_case_type": "string",
-  "evidence": [],
-  "risks": [],
-  "open_questions": [],
-  "draft_packet": {}
-}
-```
-
-### 3. Contracts between agents
-Each agent should have a defined input and output schema.
-
-### 4. Review and gating
-One agent should not blindly trust another. Add review steps.
-
-### 5. Latency and cost
-Multi-agent systems are expensive if every agent calls an LLM unnecessarily.
-
-### 6. Stop conditions
-The system needs a clear end state.
-
-Examples:
-
-- enough evidence gathered
-- max tool calls reached
-- human review required
-- confidence too low
-
----
-
-## Level 7: Simple Multi-Agent Orchestration
+## Level 6B — Planner-Executor Workflow Agent with HITL
 
 ### Objective
-Build a small multi-agent workflow with clear roles and shared state.
 
-### Build
-Create `multi_agent_use_case_lab`.
+Build a more realistic workflow agent that prepares a preset report by coordinating multiple data sources. This is the missing level between a simple ReAct agent and a true multi-agent system.
 
-Input:
+### NPS API endpoints used
 
-```text
-A rough GenAI business request plus optional supporting documents.
-```
+**`/parks`**, **`/alerts`**, **`/campgrounds`**, **`/visitorcenters`**, **`/thingstodo`**, **`/events`** + **external [NWS Weather API](https://api.weather.gov)** (free, no key required)
 
-Output:
+The NWS API pairing is natural: the NPS `/parks` endpoint gives you lat/lon coordinates for every park, and the NWS API gives you weather forecasts at those coordinates. No separate API key needed.
+
+### Pattern
 
 ```text
-Implementation packet with evidence, risks, architecture recommendation, eval plan, and open questions.
+user request → planner creates workflow plan → human reviews/edits plan → executor runs fixed workflow steps → evidence reviewer checks completeness → final report generator
 ```
 
-### Agents
+This is more reliable than letting a ReAct agent wander.
 
-#### 1. Intake Analyst
-Classifies the request and identifies missing information.
+### Chainlit interaction
+
+This is where HITL becomes tangible. The Chainlit UI shows the proposed plan as an intermediate step. The learner (acting as the human reviewer) can approve, edit, or reject the plan before execution continues. Chainlit's `ask_user` feature handles the interrupt.
+
+### Workflow 1: Weekend Camping Trip Readiness Report
+
+User request:
+
+> Prepare me for a camping trip this weekend near Shenandoah. I care about hikes, campground availability, closures/alerts, weather, and what to pack.
+
+Plan steps:
+
+1. Resolve destination / candidate parks → `GET /parks?stateCode=VA`
+2. Fetch park details → `GET /parks?parkCode=shen`
+3. Fetch alerts → `GET /alerts?parkCode=shen`
+4. Fetch campgrounds → `GET /campgrounds?parkCode=shen`
+5. Fetch visitor centers or relevant facilities → `GET /visitorcenters?parkCode=shen`
+6. Fetch things to do → `GET /thingstodo?parkCode=shen`
+7. Fetch weather by coordinates → `GET api.weather.gov/points/{lat},{lon}/forecast`
+8. Retrieve unstructured safety/trail/visitor docs → vector store search
+9. Compile readiness report
+10. Ask for human approval before finalizing
 
 Output:
 
 ```json
 {
-  "use_case_type": "inference | extraction | rag | workflow | agent",
-  "business_goal": "string",
-  "users": ["string"],
-  "missing_info": ["string"]
+  "trip_goal": "string",
+  "destination_candidates": [],
+  "recommended_option": "string",
+  "weather_summary": "string",
+  "alerts_and_closures": [],
+  "campground_notes": [],
+  "hiking_options": [],
+  "packing_checklist": [],
+  "risks": [],
+  "missing_information": [],
+  "citations": [],
+  "human_review_required": true
 }
 ```
 
-#### 2. Retrieval Specialist
-Finds relevant supporting evidence from uploaded documents.
+### Workflow 2: Geographic Coverage Report
 
-Output:
+User request:
+
+> Show which campgrounds and visitor centers are available within a rough geographic area, and summarize gaps.
+
+Plan steps:
+
+1. Parse geographic intent
+2. Identify candidate parks by state/region → `GET /parks?stateCode=X`
+3. Fetch campgrounds → `GET /campgrounds?stateCode=X`
+4. Fetch visitor centers → `GET /visitorcenters?stateCode=X`
+5. Compute distance/coverage if coordinates exist
+6. Retrieve relevant descriptions → vector store search
+7. Produce coverage table
+8. Identify missing/low-confidence data
+
+### HITL interrupt
+
+Require human review at one or more points:
+
+- After planner generates the proposed plan
+- Before using external APIs above a threshold
+- Before producing an itinerary as a recommendation
+- Before drafting/sending anything
+- When evidence is incomplete or conflicting
+
+### How to evaluate
+
+- **Plan quality**: given 5 requests, does the planner produce sensible, complete plans?
+- **Execution fidelity**: does the executor follow the plan without skipping steps?
+- **HITL integration**: does the system actually pause for human review at the right points?
+- **Report completeness**: does the final report address all parts of the original request?
+
+### Done means
+
+Learners understand the planner-executor distinction: planner decides the steps, executor runs known tools/workflows, human can approve or edit the plan, final output is evidence-backed.
+
+---
+
+## Level 7 — Multi-Agent Orchestration
+
+### Objective
+
+Build a supervisor/planner that coordinates specialized agents. This should be introduced only after learners can explain why Level 6B is insufficient for certain tasks.
+
+### NPS API endpoints used
+
+**All of the above, distributed across subagents.** Each subagent owns a data domain:
+
+| Subagent | NPS endpoints | Role |
+|---|---|---|
+| Research/Retrieval Agent | vector store (ingested corpus) | Semantic search over articles, descriptions, tours, places |
+| Structured Data Agent | `/parks`, `/campgrounds`, `/visitorcenters`, `/events`, `/thingstodo`, `/amenities` | Live API calls with filters |
+| Risk/Safety Reviewer Agent | `/alerts` + NWS weather API | Real-time safety assessment |
+| Itinerary/Report Planner Agent | none directly — consumes other agents' outputs | Synthesis and planning |
+
+The NPS API's breadth is what justifies multi-agent here — no single agent should own 10+ endpoints across fundamentally different concerns (safety vs. logistics vs. research).
+
+### Recommended design
+
+Use a planner-executor supervisor with ReAct-capable subagents.
+
+```text
+Supervisor Planner
+  → Research/Retrieval Agent
+  → Structured Data Agent
+  → Risk/Safety Reviewer Agent
+  → Itinerary/Report Planner Agent
+  → Final Synthesizer
+```
+
+### Subagent roles
+
+**Research/Retrieval Agent** — searches vector store and unstructured documents.
 
 ```json
 {
-  "evidence": [
-    {
-      "claim": "string",
-      "source": "string",
-      "chunk_id": "string"
-    }
-  ]
+  "evidence": [],
+  "unanswered_questions": [],
+  "confidence": "low | medium | high"
 }
 ```
 
-#### 3. Risk Reviewer
-Flags governance, data, entitlement, and reliability risks.
+**Structured Data Agent** — calls structured NPS API endpoints and applies filters.
 
-Output:
+```json
+{
+  "records": [],
+  "filters_used": {},
+  "data_quality_notes": []
+}
+```
+
+**Risk/Safety Reviewer Agent** — reviews `/alerts`, NWS weather, missing data, and overclaims.
 
 ```json
 {
@@ -658,322 +799,209 @@ Output:
     {
       "risk": "string",
       "severity": "low | medium | high",
+      "evidence": "string",
       "mitigation": "string"
     }
-  ]
+  ],
+  "must_include_disclaimers": []
 }
 ```
 
-#### 4. Implementation Planner
-Recommends architecture and rollout approach.
-
-Output:
+**Itinerary/Report Planner Agent** — turns evidence into a structured visitor report.
 
 ```json
 {
-  "recommended_pattern": "string",
-  "architecture_steps": ["string"],
-  "eval_plan": ["string"],
-  "production_checklist": ["string"]
+  "recommended_plan": [],
+  "alternatives": [],
+  "assumptions": [],
+  "open_questions": []
 }
 ```
 
-#### 5. Final Synthesizer
-Produces the final implementation packet.
+**Final Synthesizer** — combines outputs, removes unsupported claims, and produces the final answer.
 
-### Concepts to learn
+### Chainlit interaction
 
-- role specialization
-- supervisor/orchestrator pattern
-- shared state
-- agent contracts
-- review gates
-- traceability
-- when multi-agent is overkill
+In the step trace, learners see which subagent the supervisor invoked, what each subagent returned, and how the synthesizer combined them. This is the most complex step trace in the curriculum.
 
-### Completion criteria
-The learner can explain why each agent exists and what would break if it were removed.
+### When this is justified
+
+Use multi-agent only when the task has meaningfully different workstreams: structured data lookup, unstructured retrieval, safety/risk review, planning/synthesis, evidence checking.
+
+Do not use multi-agent for simple Q&A.
+
+### How to evaluate
+
+- **Subagent contracts**: does each subagent return its specified output schema?
+- **Supervisor routing**: does the supervisor invoke the right subagents for a given task?
+- **Ablation**: remove one subagent. What breaks? If nothing breaks, that subagent shouldn't exist.
+- **End-to-end comparison**: run the same complex queries through Level 6B (single planner-executor) and Level 7 (multi-agent). Where does multi-agent actually improve results?
+
+### Done means
+
+Learners can explain: why each agent exists, what each agent returns, what the shared state is, what the supervisor controls, where HITL belongs, what would break if an agent were removed.
 
 ---
 
-## Level 8: Production Thinking
+## Level 8 — Production Thinking
 
 ### Objective
-Teach the practical concerns that separate demos from usable systems.
+
+Transition from "it works on my laptop" to "it could run in production." This level is discussion-heavy but includes a concrete deliverable.
+
+### NPS API as production case study
+
+The NPS API teaches real production concerns directly:
+
+- **Rate limits**: hourly limits per API key — what happens when you exceed them?
+- **Data freshness**: alerts update every ~2 hours — what if an alert expired since last ingestion?
+- **Pagination quirks**: 0-based `start` parameter, max 50 results per call
+- **Optional fields**: images require `fields=images` — what if you forget?
+- **Availability**: the API can go down — what does your system do?
 
 ### Topics
 
-#### Security and governance
+**Identity and access control:**
+- OAuth difference: service acts as itself vs. app acts on behalf of a user
+- User access scoping and data permissions
+- Source-level access control — should the copilot see data the user can't?
 
-- data classification
-- user permissions
-- source-level access control
-- prompt injection
-- sensitive data handling
-- audit trails
+**Security:**
+- Prompt injection (direct and indirect) — demonstrate real examples
+- Data exfiltration via tool calls
+- Output filtering and guardrails
 
-#### Reliability
+**Data integrity:**
+- Stale data and alert freshness — what if an alert expired 2 hours ago?
+- Embedding drift — what happens when you update the embedding model?
+- Source-of-truth conflicts
 
-- retries
-- timeouts
-- idempotency
-- fallback behavior
-- logging
-- error handling
+**Reliability:**
+- Rate limits and backpressure
+- Failure handling — what happens when the LLM is down? When pgvector is slow?
+- Timeout budgets for agent loops
+- Graceful degradation
 
-#### Evaluation
+**Observability:**
+- Request tracing end-to-end (expand from Level 3's basic logging)
+- LLM call logging: prompt, completion, tokens, latency, model version
+- Retrieval quality monitoring in production
+- Agent step tracing and debugging
+- Alerting on quality regressions
 
-- golden test sets
-- retrieval accuracy
-- citation accuracy
-- extraction accuracy
-- hallucination checks
-- regression tests
+**Evaluation in production:**
+- Evals are not a one-time thing. They run on every deploy.
+- Regression tests: does a model upgrade break existing behavior?
+- A/B testing retrieval strategies
+- User feedback loops
 
-#### Operations
+### Practical exercise
 
-- cost tracking
-- latency tracking
-- model choice
-- versioning prompts
-- monitoring failures
-- user feedback loops
-
-### Exercise
-For the capstone, create a production-readiness checklist.
-
-Example sections:
-
-- Data
-- Access control
-- Evaluation
-- UX
-- Support model
-- Monitoring
-- Rollout
-- Known limitations
-
-### Completion criteria
-The learner can explain what is missing before a demo becomes production-ready.
-
----
-
-## Suggested 6-Week Schedule
-
-## Week 1: Foundations and inference-only apps
-
-Deliverables:
-
-- basic LLM task app
-- summarization mode
-- classification mode
-- action item extraction mode
-- 10-case eval sheet
-
-## Week 2: Structured extraction
-
-Deliverables:
-
-- JSON schema outputs
-- validation
-- confidence fields
-- unknown handling
-- extraction test set
-
-## Week 3: RAG ingestion
-
-Deliverables:
-
-- file upload
-- parsing
-- chunking
-- embeddings
-- vector storage
-- metadata search
-
-## Week 4: Basic RAG and citations
-
-Deliverables:
-
-- Q&A over documents
-- cited answers
-- insufficient evidence behavior
-- retrieval test questions
-
-## Week 5: RAG orchestration and single-agent tools
-
-Deliverables:
-
-- intent classifier
-- retrieval strategy selection
-- evidence reviewer
-- simple tool-using agent
-- human approval gate
-
-## Week 6: Multi-agent capstone
-
-Deliverables:
-
-- use case intake workflow
-- specialist agents
-- shared state
-- final implementation packet
-- production-readiness checklist
-- short demo video or walkthrough
-
----
-
-## Recommended Capstone Prompt
-
-Build a local prototype of a **GenAI Use Case Intake Copilot**.
-
-The copilot should take a rough business request such as:
+Write a production readiness checklist for the Field Guide Copilot:
 
 ```text
-We want a GenAI tool that lets employees ask questions over policy documents and automatically draft a request form when the answer requires a process change.
+Data provenance and freshness
+Access controls and user scoping
+Citation quality and traceability
+Retrieval evals — automated, run on deploy
+Agent tool call limits and timeout budgets
+Human review points
+Monitoring and alerting
+Prompt injection mitigations
+Known limitations — documented and communicated
+Graceful degradation plan
 ```
 
-The system should produce:
+### Done means
 
-1. Use case classification
-2. Business goal
-3. Data sources required
-4. Recommended architecture pattern
-5. Whether this is inference-only, RAG, workflow, or agentic
-6. Key risks
-7. Entitlement questions
-8. Evaluation plan
-9. Implementation checklist
-10. Open questions for the business owner
+Learners produce a written production readiness document for their copilot. It should be specific to their implementation, not generic.
 
 ---
 
-## What Good Looks Like
+## Weekly sequence
 
-A strong learner can answer these questions:
+### Week 1
 
-1. Is this use case inference-only, RAG, workflow, agentic, or multi-agent?
-2. What data is needed?
-3. What should be structured vs. free-text?
-4. What evidence supports the answer?
-5. What could go wrong?
-6. How do we evaluate quality?
-7. Where does a human need to review?
-8. What would block production?
+- Level 0: setup and first API call
+- Level 1: generic inference
+- Level 2: document understanding / structured extraction
+- Set up project structure, Chainlit UI, first eval harness
+
+### Week 2
+
+- Level 3: ingestion substrate
+- Focus on embeddings, chunking, metadata, and what not to vectorize
+- Introduce observability logging
+
+### Week 3
+
+- Level 4: retrieval mechanics and basic RAG
+- Vector, keyword, hybrid, RAG fusion, citations
+- Multi-turn conversation with query rewriting
+
+### Week 4
+
+- Level 5: RAG orchestration
+- LangGraph graph with conditional routing
+- Intent classification and retrieval planning
+
+### Week 5
+
+- Level 6A: ReAct single agent
+- Tool use, function calling, constrained loops
+
+### Week 6
+
+- Level 6B: planner-executor workflow agent with HITL
+- Plan → review → execute → verify pattern
+
+### Week 7
+
+- Level 7: multi-agent orchestration
+- Supervisor, subagent contracts, shared state
+
+### Week 8
+
+- Level 8: production thinking
+- Security, observability, evals in production
+- Production readiness document
 
 ---
 
-## Recommended Repo Structure
+## Mentor note
+
+The most important distinction to teach:
 
 ```text
-genai-implementation-lab/
-  README.md
-  app/
-    main.py
-    llm.py
-    schemas.py
-    config.py
-  ingestion/
-    parsers.py
-    chunking.py
-    embeddings.py
-    vector_store.py
-  rag/
-    retrieval.py
-    context_builder.py
-    answer_generator.py
-    evidence_reviewer.py
-  agents/
-    tools.py
-    single_agent.py
-    multi_agent.py
-    state.py
-  evals/
-    test_cases.json
-    run_evals.py
-    results.md
-  docs/
-    curriculum_notes.md
-    production_readiness_checklist.md
+RAG answers questions from retrieved evidence.
+RAG orchestration chooses the retrieval/answer strategy.
+A ReAct agent chooses tools in a loop.
+A planner-executor agent creates a plan and executes controlled steps.
+A multi-agent system splits specialized responsibilities across agents with contracts.
 ```
+
+That ladder is the curriculum.
+
+### On evals
+
+If there is one meta-lesson that should persist after the curriculum ends, it is this: **you cannot improve what you do not measure.** Evals are not a Level 8 topic. They start at Level 1 and run through every level. Every "Done means" section includes evaluation criteria. Every level should produce a test suite that outlives the learning exercise.
+
+### On the UI
+
+The Chainlit frontend is scaffolding, not the product. Learners should understand that the UI is intentionally stable so they can focus on the implementation ladder. In a real product, the frontend would evolve too — but that is a different curriculum.
 
 ---
 
-## Claude Code Build Rules for Learners
+## Further reading
 
-Use Claude Code to help build, but do not let it hide understanding.
+These are not required. They are useful if a learner wants to go deeper on a specific topic.
 
-### Before asking Claude Code to implement
-Write:
-
-1. What feature you are building.
-2. What files should change.
-3. What success looks like.
-4. What tests should pass.
-
-### Good Claude Code prompt
-
-```text
-We are building Level 4: Basic RAG Q&A.
-
-Current repo structure is below. Please inspect the codebase first, then propose a small implementation plan before editing.
-
-Goal:
-- Take a user question.
-- Retrieve top-k chunks from the vector store.
-- Generate an answer using only retrieved context.
-- Return answer, citations, confidence, and missing_information.
-
-Constraints:
-- Keep changes minimal.
-- Use existing schemas where possible.
-- Add tests for insufficient evidence behavior.
-- Do not introduce a new framework unless necessary.
-
-After implementing, run tests and summarize what changed.
-```
-
-### Bad Claude Code prompt
-
-```text
-Build RAG.
-```
-
----
-
-## Mentor Review Rubric
-
-Score each learner from 1 to 5.
-
-### Pattern recognition
-Can they identify the right GenAI pattern for a use case?
-
-### System design
-Can they explain the components and data flow?
-
-### Evidence discipline
-Can they avoid unsupported answers and show citations?
-
-### Workflow thinking
-Can they turn model output into usable business process steps?
-
-### Evaluation
-Can they define tests and success criteria?
-
-### Production judgment
-Can they identify risks, access control needs, and support concerns?
-
-### Technical execution
-Can they build and debug the project with Claude Code without losing the plot?
-
----
-
-## Key Teaching Principle
-
-Do not teach GenAI as “chatbot building.” Teach it as:
-
-```text
-inputs → reasoning pattern → evidence → structured output → workflow action → evaluation → production controls
-```
-
-That is the mental model new joiners need to become useful quickly.
+- [Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks](https://arxiv.org/abs/2005.11401) — the original RAG paper
+- [LangGraph documentation](https://langchain-ai.github.io/langgraph/) — graph-based agent orchestration
+- [pgvector documentation](https://github.com/pgvector/pgvector) — vector similarity search in PostgreSQL
+- [Chainlit documentation](https://docs.chainlit.io/) — the chat UI framework
+- [MTEB Leaderboard](https://huggingface.co/spaces/mteb/leaderboard) — embedding model benchmarks
+- [NPS API documentation](https://www.nps.gov/subjects/developer/api-documentation.htm) — the data source
+- [NWS Weather API](https://www.weather.gov/documentation/services-web-api) — weather forecasts by coordinates (used in Level 6B)
+- [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629) — the ReAct pattern
+- [Anthropic's prompt engineering guide](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview) — prompt design fundamentals
