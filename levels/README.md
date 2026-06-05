@@ -86,3 +86,29 @@ The Chainlit UI includes a guided wizard with prompt playground features:
 - **`prompts`** -- displays all default prompt templates (summarize, rewrite, classify, extract) so you can see exactly what is being sent to the LLM
 - **`edit <mode>`** -- opens the prompt template for a given mode so you can inspect or copy it. Example: `edit summarize`
 - **`<park-code>` alone** -- runs all 4 modes (summarize, rewrite, classify, extract) on the park. Example: `yell`
+
+## Level 2: Structured Extraction (Learner Scaffold)
+
+No new dependencies required. The same venv and `.env` from Level 0-1 work here.
+
+The repo provides:
+- `nps_client.py` — extended with `fetch_alerts()`, `fetch_campgrounds()`, `fetch_visitor_centers()`, `fetch_events()`
+- `schemas.py` — Pydantic models: `ParkExtraction`, `VisitorRisk`, `Logistics`, `Severity`, `Confidence`
+- `level2_structured_extraction.py` — CLI scaffold
+- `level2_chainlit_extraction.py` — Chainlit UI scaffold
+
+You build:
+1. The extraction prompt that tells the LLM to return JSON matching the schema
+2. The JSON parsing logic (handle markdown code fences)
+3. Pydantic validation of the parsed result
+
+Use the prompt card from `docs/ai_coding_assistant_playbook.md` or the full build prompt from `docs/spoiler_full_build_prompts.md`.
+
+Commands:
+
+```bash
+python levels/level2_structured_extraction.py --endpoint parks --park-code yell
+python levels/level2_structured_extraction.py --endpoint alerts --park-code acad
+chainlit run levels/level2_chainlit_extraction.py
+python evals/level2_schema_eval.py
+```

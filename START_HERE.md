@@ -95,3 +95,20 @@ Main docs:
 - [genai_curriculum.md](genai_curriculum.md)
 - [docs/ai_coding_assistant_playbook.md](docs/ai_coding_assistant_playbook.md)
 - [docs/spoiler_full_build_prompts.md](docs/spoiler_full_build_prompts.md)
+
+## Level 2: Build It Yourself
+
+Starting at Level 2, the repo provides the **infrastructure** and you build the logic:
+
+- `levels/nps_client.py` — fetches from `/parks`, `/alerts`, `/campgrounds`, `/visitorcenters`, `/events`
+- `levels/schemas.py` — Pydantic models for structured extraction
+- `levels/level2_structured_extraction.py` — CLI scaffold with TODO sections
+- `levels/level2_chainlit_extraction.py` — Chainlit UI scaffold with TODO sections
+
+Use the Level 2 prompt card from [docs/ai_coding_assistant_playbook.md](docs/ai_coding_assistant_playbook.md) with your AI coding assistant.
+
+Verify your build:
+
+```bash
+python evals/level2_schema_eval.py
+```
