@@ -162,16 +162,17 @@ python levels/level1_generic_inference.py --mode extract --text "Call the visito
 Chainlit UI:
 
 ```bash
-chainlit run levels/level1_chainlit_field_guide.py
+chainlit run levels/level1_chainlit_vB.py
 ```
 
 Try:
 
 ```text
 summarize yell
-rewrite dena
-classify Can I bring my dog on the trail?
-extract Call the visitor center, check road closures, and pack extra water.
+summarize yell | Explain this like I'm 5
+compare yell
+prompts
+help
 ```
 
 Optional smoke eval:

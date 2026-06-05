@@ -64,14 +64,25 @@ python levels/level1_generic_inference.py --mode extract --text "Call the visito
 Chainlit UI:
 
 ```bash
-chainlit run levels/level1_chainlit_field_guide.py
+chainlit run levels/level1_chainlit_vB.py
 ```
 
 Try messages like:
 
 ```text
 summarize yell
-rewrite dena
-classify Can I bring my dog on the trail?
-extract Call the visitor center, check road closures, and pack extra water.
+summarize yell | Explain this like I'm 5
+compare yell
+prompts
+help
 ```
+
+### Prompt Playground
+
+The Chainlit UI includes a guided wizard with prompt playground features:
+
+- **Pipe syntax** -- append `| Your custom prompt` to any command to override the system prompt. Example: `summarize yell | Explain this like I'm 5`
+- **`compare <park>`** -- runs the same park through 3 different prompt variants and shows them side-by-side so you can compare outputs. Example: `compare yell`
+- **`prompts`** -- displays all default prompt templates (summarize, rewrite, classify, extract) so you can see exactly what is being sent to the LLM
+- **`edit <mode>`** -- opens the prompt template for a given mode so you can inspect or copy it. Example: `edit summarize`
+- **`<park-code>` alone** -- runs all 4 modes (summarize, rewrite, classify, extract) on the park. Example: `yell`

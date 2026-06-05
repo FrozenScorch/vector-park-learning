@@ -60,10 +60,12 @@ chainlit run levels/level0_chainlit_nps.py
 Then:
 
 ```bash
-chainlit run levels/level1_chainlit_field_guide.py
+chainlit run levels/level1_chainlit_vB.py
 ```
 
 Open [http://localhost:8000](http://localhost:8000).
+
+The Level 1 UI includes a prompt playground: you can see the exact prompt being sent at each step, customize prompts with pipe syntax (`summarize yell | Your custom prompt`), compare 3 different prompts side-by-side (`compare yell`), and view all default templates (`prompts`).
 
 ## Notebook Path
 
