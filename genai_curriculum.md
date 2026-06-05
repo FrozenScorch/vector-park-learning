@@ -2,17 +2,56 @@
 
 ## What this is
 
-A hands-on curriculum that teaches the full implementation ladder from single LLM calls to multi-agent orchestration. Learners build one system — a National Parks Field Guide Copilot — over 8 weeks, using public National Park Service data.
+A hands-on curriculum that teaches how GenAI systems are built, from single LLM calls to multi-agent workflows. Learners build one system — a National Parks Field Guide assistant — over 8 weeks, using public National Park Service data.
 
 The theme is parks. The point is not parks. The point is learning how structured and unstructured data become reliable AI workflows.
 
 ```text
-setup → single inference → document understanding → ingestion substrate → retrieval mechanics → RAG orchestration → ReAct agent → planner-executor workflow agent → multi-agent orchestration → production thinking
+setup → single inference → document understanding → ingestion substrate → retrieval mechanics → RAG routing → ReAct agent → planner-executor workflow → multi-agent workflow → production review
 ```
 
 ## Who this is for
 
-Engineers or technical analysts joining an enterprise AI platform team. You should be comfortable reading and writing Python, but you do not need prior ML or LLM experience. Everything else is taught in order.
+Business analysts and technical analysts joining an AI or data team. You should be comfortable reading basic Python, but you do not need prior ML or LLM experience. Everything else is taught in order.
+
+The preferred format is self-paced: learners run a functional demo first, then read the explanation, then make a small change and run a lightweight eval.
+
+## How this curriculum is taught
+
+This is an AI-assisted build curriculum. Learners are expected to use Codex, Claude Code, Copilot, Cursor, or a similar coding assistant while they build.
+
+The learning loop is:
+
+```text
+Orient → Ask → Inspect → Run → Evaluate → Explain
+```
+
+The assistant can draft code, explain errors, and suggest tests. The learner owns the intent, reviews the diff, runs the demo, and explains what happened. See [docs/ai_coding_assistant_playbook.md](docs/ai_coding_assistant_playbook.md) for reusable prompt cards.
+
+## 101 / 201 / 301 track structure
+
+The numbered levels form three learning tracks:
+
+| Track | Levels | What changes in the system |
+|---|---:|---|
+| Field Guide 101 | 0–2 | One NPS record becomes useful output through API calls, prompts, and schemas |
+| Field Guide 201 | 3–5 | Many NPS endpoints become a searchable, cited knowledge system |
+| Field Guide 301 | 6–8 | Live NPS APIs become tools inside controlled agent and workflow patterns |
+
+See [docs/learning_tracks.md](docs/learning_tracks.md) for the full track map.
+
+This follows the useful shape of [langchain-ai/langgraph-101](https://github.com/langchain-ai/langgraph-101): notebooks for guided 101/201 learning and standalone code for runnable agents. Vector Park Learning uses the same idea, but keeps the NPS Field Guide assistant as the single through-line.
+
+## Notebook guidance
+
+Use notebooks as companion walkthroughs, not as the only implementation.
+
+- `levels/` should contain the runnable source-of-truth demos.
+- `evals/` should contain smoke checks and regression checks.
+- `notebooks/` should explain the concepts, call into `levels/`, show outputs, and ask checkpoint questions.
+- `docs/` should hold setup, curriculum, and Codex/Claude prompt guidance.
+
+This lets business analysts learn in a notebook-friendly format while still practicing real repo-based development with Codex or Claude Code. See [docs/notebook_strategy.md](docs/notebook_strategy.md).
 
 ## Tech stack
 
@@ -20,14 +59,23 @@ Engineers or technical analysts joining an enterprise AI platform team. You shou
 |---|---|---|
 | Language | Python 3.11+ | Ecosystem fit for LangChain/LangGraph |
 | Orchestration | LangGraph | Graph-based agent workflows with explicit state |
-| Vector store | PostgreSQL + pgvector | Production-grade, supports hybrid search and metadata filtering |
-| LLM + Embeddings | NVIDIA NIM via [build.nvidia.com](https://build.nvidia.com) | Free tier, OpenAI-compatible, works with LangChain out of the box |
+| Vector store | PostgreSQL + pgvector | Practical database for vector search, keyword search, and metadata filters |
+| LLM + Embeddings | OpenAI-compatible providers: NVIDIA NIM, DeepSeek, Ollama/local, or custom endpoints | Lets learners use a hosted key or local inference without changing the demo code |
 | Frontend | Chainlit | Pre-built chat UI, Python-native, see below |
 | Data source | [NPS API](https://www.nps.gov/subjects/developer/api-documentation.htm) | Free, public, rich structured + unstructured data |
 
 ## The data source
 
-The [National Park Service API](https://developer.nps.gov/api/v1/) is the backbone of this curriculum. It provides both structured data (park codes, coordinates, fee amounts, activity categories) and unstructured data (park descriptions, alert text, article bodies, tour narratives). That mix is what makes it a realistic stand-in for enterprise data.
+The [National Park Service API](https://developer.nps.gov/api/v1/) is the data source for this curriculum. It provides both structured data (park codes, coordinates, fee amounts, activity categories) and unstructured data (park descriptions, alert text, article bodies, tour narratives). That mix makes it a useful stand-in for real workplace data.
+
+The NPS API is the example that carries the course:
+
+- A single `/parks` response teaches API plumbing.
+- Descriptions and weather notes teach prompt design.
+- Alerts and campground text teach structured extraction.
+- Multiple endpoints teach ingestion, chunking, metadata, and retrieval.
+- Live alerts, campgrounds, visitor centers, and weather become agent tools.
+- A trip-readiness report becomes the planner-executor workflow.
 
 ### NPS API endpoint inventory
 
@@ -108,17 +156,41 @@ Get the development environment running and make the first NPS API call. Zero AI
 
 ### Setup steps
 
-Follow the setup instructions in the [README](README.md). By the end you should have:
+Follow the quick-start setup instructions in the [README](README.md). By the end of Level 0 you should have:
 
 1. **Python 3.11+** with a virtual environment
-2. **PostgreSQL + pgvector** running in Docker
-3. **NPS API key** — free at [nps.gov/subjects/developer](https://www.nps.gov/subjects/developer/get-started.htm)
-4. **NVIDIA NIM API key** — free at [build.nvidia.com](https://build.nvidia.com) (OpenAI-compatible, works with LangChain)
-5. **Python dependencies** — `pip install langchain langchain-nvidia-ai-endpoints langgraph chainlit psycopg2-binary pgvector requests pydantic python-dotenv`
-6. **Chainlit** launching and echoing messages
-7. **`.env` file** with all keys (and `.gitignore`d)
+2. **NPS API key** - free at [nps.gov/subjects/developer](https://www.nps.gov/subjects/developer/get-started.htm)
+3. **Python dependencies** - `pip install -r requirements.txt`
+4. **`.env` file** with `NPS_API_KEY`
+5. **Chainlit** installed and ready to launch
 
-Use an AI coding assistant (Claude Code, Copilot, etc.) to help scaffold your project directory and verify each step.
+Docker, PostgreSQL, pgvector, embeddings, and LangGraph are intentionally not required yet. They start when ingestion and retrieval become the lesson.
+
+Use an AI coding assistant (Claude Code, Copilot, Codex, Cursor, etc.) to help verify each step.
+
+### Functional demo
+
+Run the CLI demo:
+
+```bash
+python levels/level0_first_nps_call.py --park-code yell
+```
+
+Run the Chainlit demo:
+
+```bash
+chainlit run levels/level0_chainlit_nps.py
+```
+
+Open [http://localhost:8000](http://localhost:8000), then type a park code such as `yell`, `acad`, or `grca`.
+
+### AI assistant task
+
+Use Codex or Claude Code to make one small change:
+
+```text
+Inspect the Level 0 files. Then modify the Chainlit demo so it also displays one more NPS field, such as weatherInfo, directionsInfo, or activities. Keep the code beginner-readable and tell me what command to run.
+```
 
 ### Project structure
 
@@ -140,11 +212,11 @@ field-guide-copilot/
 
 ### Exercise
 
-Write a Chainlit handler that takes a park code from the chat input (e.g., `yell`), calls `GET /parks?parkCode=yell`, and displays the park name, description, and state in the chat response. No LLM involved. Just API → UI.
+Modify the Chainlit handler so it also displays one additional field from the NPS response, such as `weatherInfo`, `directionsInfo`, or `activities`. No LLM involved. Just API to UI.
 
 ### Done means
 
-The Chainlit app launches. You can type a park code, see real NPS data come back. Postgres is running with pgvector enabled. Your NVIDIA NIM API key is set in environment variables. Everything is wired and ready for Level 1.
+The CLI demo returns real NPS data. The Chainlit app launches. You can type a park code and see real park information come back. Learners understand where the API key lives, what an HTTP request returns, and how the UI is connected to backend code.
 
 ---
 
@@ -160,14 +232,51 @@ Build a single-call LLM feature. No RAG. No vector DB. No agents.
 
 ### What learners build
 
-The Chainlit app now routes user input to an LLM. Learners implement four inference modes over real park text:
+The Chainlit app now routes user input to an LLM. Learners run and modify four inference modes over real park text:
 
 - Summarize Yellowstone's overview for a first-time visitor.
 - Rewrite a dense Denali weather warning for a family audience.
 - Classify a visitor question into categories: trip planning, safety/alerts, camping, hiking, accessibility, fees/logistics, not enough information.
 - Extract action items from a park operations-style note.
 
-The NPS API is just the data source here. Learners are not doing anything sophisticated with it — just `requests.get()`, grab the text, pass it to the LLM.
+The NPS API is just the data source here. Learners reuse the Level 0 NPS client, grab the text fields, and pass them to the LLM.
+
+### Functional demo
+
+Run one mode from the terminal:
+
+```bash
+python levels/level1_generic_inference.py --mode summarize --park-code yell
+```
+
+Run the Chainlit demo:
+
+```bash
+chainlit run levels/level1_chainlit_field_guide.py
+```
+
+Try:
+
+```text
+summarize yell
+rewrite dena
+classify Can I bring my dog on the trail?
+extract Call the visitor center, check road closures, and pack extra water.
+```
+
+Then run the smoke eval:
+
+```bash
+python evals/level1_smoke_eval.py
+```
+
+### AI assistant task
+
+Use Codex or Claude Code to improve one mode:
+
+```text
+Inspect the Level 1 inference demo. Improve the summarize prompt so it is more useful for a first-time park visitor, but make sure it stays grounded in the source text. Then explain the diff and tell me which command verifies the change.
+```
 
 ### What learners should understand
 
@@ -266,6 +375,14 @@ Build the document ingestion pipeline. This is where learners build the substrat
 
 **This level runs from the terminal, not through Chainlit.** Ingestion is a backend pipeline. You would not type "ingest 400 parks" into a chat window.
 
+Before starting Level 3, install the full dependency set and start pgvector:
+
+```bash
+pip install -r requirements-full.txt
+```
+
+Then follow the Docker instructions in the [README](README.md#later-setup-for-level-3).
+
 ### NPS API endpoints used
 
 **`/parks`**, **`/alerts`**, **`/campgrounds`**, **`/visitorcenters`**, **`/events`**, **`/thingstodo`**, **`/articles`**, **`/newsreleases`**, **`/places`**, **`/tours`**
@@ -294,7 +411,7 @@ Consider these factors:
 - Benchmark performance on retrieval tasks (MTEB leaderboard)
 - Whether the model fits your deployment constraints
 
-For this curriculum, we use NVIDIA NIM embedding models via the same `build.nvidia.com` API you set up in Level 0. Options include `nvidia/nv-embedqa-e5-v5` and `nvidia/nv-embed-v2`. These are accessed the same way as the LLM — just a different model name on the same endpoint. Pick one and keep it consistent — switching embedding models mid-project means re-embedding everything.
+For this curriculum, pick one embedding backend and keep it consistent. A hosted option is NVIDIA NIM via `build.nvidia.com`, with models such as `nvidia/nv-embedqa-e5-v5` and `nvidia/nv-embed-v2`. A local option can be introduced later if learners have the hardware and patience for it. The important lesson is consistency: switching embedding models mid-project means re-embedding everything.
 
 ### Pipeline
 
@@ -627,7 +744,7 @@ Chainlit's intermediate steps panel shows each tool call as the agent makes it: 
 
 ### Done means
 
-Learners understand ReAct as tool selection + observation loops, not magic autonomy. The agent completes tasks within constraints and fails gracefully.
+Learners understand ReAct as tool selection plus observation loops, not independent decision-making without limits. The agent completes tasks within constraints and fails gracefully.
 
 ---
 
@@ -984,7 +1101,7 @@ If there is one meta-lesson that should persist after the curriculum ends, it is
 
 ### On the UI
 
-The Chainlit frontend is scaffolding, not the product. Learners should understand that the UI is intentionally stable so they can focus on the implementation ladder. In a real product, the frontend would evolve too — but that is a different curriculum.
+The Chainlit frontend is support code, not the product. Learners should understand that the UI is intentionally stable so they can focus on the build path. In a real product, the frontend would evolve too — but that is a different curriculum.
 
 ---
 

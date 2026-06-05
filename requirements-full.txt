@@ -1,0 +1,8 @@
+-r requirements.txt
+
+# Required starting in the RAG and agent tracks.
+langchain
+langchain-nvidia-ai-endpoints
+langgraph
+psycopg2-binary
+pgvector

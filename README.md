@@ -1,57 +1,212 @@
 # Vector Park Learning
 
-A hands-on, 8-week curriculum that teaches the full GenAI implementation ladder — from a single LLM call to multi-agent orchestration — by building one system over public National Park Service data.
+A hands-on, 8-week curriculum that teaches how GenAI systems are built - from a single LLM call to multi-agent workflows - by building one system over public National Park Service data.
 
-This is opinionated and born from enterprise experience. It teaches the distinctions that matter in production: why RAG orchestration is not the same as an agent, why a planner-executor is not the same as ReAct, and why evals start at Level 1, not Level 8.
+It focuses on practical distinctions: why RAG routing is not the same as an agent, why a planner-executor workflow is not the same as ReAct, and why evals start at Level 1, not Level 8.
+
+## Start Here
+
+If you are trying this repo for the first time, begin with [START_HERE.md](START_HERE.md).
 
 ## The ladder
 
+```text
+Level 0 - Setup & First NPS API Call
+Level 1 - Generic Inference
+Level 2 - Document Understanding & Structured Extraction
+Level 3 - RAG Ingestion Substrate
+Level 4 - Retrieval Mechanics & Basic RAG
+Level 5 - RAG Orchestration
+Level 6A - ReAct Single Agent
+Level 6B - Planner-Executor Workflow Agent with HITL
+Level 7 - Multi-Agent Orchestration
+Level 8 - Production Thinking
 ```
-Level 0 — Setup & First NPS API Call
-Level 1 — Generic Inference
-Level 2 — Document Understanding & Structured Extraction
-Level 3 — RAG Ingestion Substrate
-Level 4 — Retrieval Mechanics & Basic RAG
-Level 5 — RAG Orchestration
-Level 6A — ReAct Single Agent
-Level 6B — Planner-Executor Workflow Agent with HITL
-Level 7 — Multi-Agent Orchestration
-Level 8 — Production Thinking
+
+## Learning Tracks
+
+The curriculum can also be read as a 101/201/301 path:
+
+| Track | Levels | Focus |
+|---|---:|---|
+| Field Guide 101 | 0-2 | API calls, first LLM calls, prompts, structured output |
+| Field Guide 201 | 3-5 | Ingestion, embeddings, retrieval, cited RAG, routing |
+| Field Guide 301 | 6-8 | Tools, ReAct agents, planner-executor workflows, multi-agent systems, production review |
+
+See [docs/learning_tracks.md](docs/learning_tracks.md) for the full track map.
+
+This structure is inspired by [langchain-ai/langgraph-101](https://github.com/langchain-ai/langgraph-101), which uses notebooks for 101/201 learning tracks and standalone agent implementations for runnable demos.
+
+## Who this is for
+
+Business analysts and technical analysts who are comfortable reading basic Python and want to understand how GenAI systems are built. No ML or LLM experience is required.
+
+The curriculum is designed to be self-paced. Each level has a working demo first, then a small extension exercise, then an evaluation habit.
+
+Notebooks are useful as companion walkthroughs, but the runnable source of truth should stay in `levels/` and `evals/`. See [docs/notebook_strategy.md](docs/notebook_strategy.md).
+
+## How Learners Use AI Coding Assistants
+
+Learners are expected to use Codex, Claude Code, Copilot, Cursor, or a similar coding assistant while building the demos.
+
+That is intentional. The course teaches a modern build loop:
+
+```text
+Orient -> Ask -> Inspect -> Run -> Evaluate -> Explain
 ```
+
+The learner owns the intent and verification. The assistant helps draft code, explain errors, and add checks. See [docs/ai_coding_assistant_playbook.md](docs/ai_coding_assistant_playbook.md) for prompt cards learners can reuse at each level.
 
 ## Prerequisites
 
-- Comfortable reading and writing Python (no ML experience needed)
 - A Mac or Windows laptop
-- Docker Desktop installed
-- An AI coding assistant (Claude Code, Copilot, etc.) to help scaffold your project
+- Python 3.11 or higher
+- A free National Park Service API key
+- One LLM backend: NVIDIA NIM, DeepSeek API, local Ollama, or another OpenAI-compatible endpoint
+- Codex, Claude Code, Copilot, Cursor, or another AI coding assistant
+- Docker Desktop, starting at Level 3 when pgvector is introduced
 
-## Setup
+## Quick Start For Levels 0 and 1
 
-### 1. Python 3.11+
+Levels 0 and 1 do not require Docker, PostgreSQL, pgvector, LangGraph, or embeddings. The goal is to get to functional demos quickly.
 
-Install Python 3.11 or higher. Verify with:
+### 1. Clone and enter the repo
 
 ```bash
-python3 --version
+git clone https://github.com/FrozenScorch/vector-park-learning.git
+cd vector-park-learning
 ```
 
-Create a virtual environment for the project:
+### 2. Create a virtual environment
+
+Mac/Linux:
 
 ```bash
-# using venv
 python3 -m venv .venv
-source .venv/bin/activate  # Mac/Linux
-.venv\Scripts\activate     # Windows
-
-# or using uv (faster)
-uv venv
 source .venv/bin/activate
 ```
 
-### 2. PostgreSQL + pgvector
+Windows PowerShell:
 
-Run PostgreSQL with the pgvector extension in Docker:
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+### 3. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Create `.env`
+
+Mac/Linux:
+
+```bash
+cp .env.example .env
+```
+
+Windows PowerShell:
+
+```powershell
+copy .env.example .env
+```
+
+Edit `.env` and add:
+
+```bash
+NPS_API_KEY=your-nps-key
+LLM_PROVIDER=nvidia
+LLM_MODEL=google/gemma-4-31b-it
+NVIDIA_API_KEY=your-nvidia-api-key
+```
+
+Get keys:
+
+- NPS API: [nps.gov/subjects/developer/get-started.htm](https://www.nps.gov/subjects/developer/get-started.htm)
+- NVIDIA NIM: [build.nvidia.com](https://build.nvidia.com)
+- DeepSeek API: [api-docs.deepseek.com](https://api-docs.deepseek.com/)
+
+For DeepSeek, local Ollama, or a custom OpenAI-compatible endpoint, see [docs/model_providers.md](docs/model_providers.md).
+
+## Run The First Demos
+
+### Level 0: First NPS API call
+
+CLI:
+
+```bash
+python levels/level0_first_nps_call.py --park-code yell
+```
+
+Chainlit UI:
+
+```bash
+chainlit run levels/level0_chainlit_nps.py
+```
+
+Open [http://localhost:8000](http://localhost:8000), then type a park code such as `yell`, `acad`, or `grca`.
+
+### Level 1: Generic inference
+
+CLI:
+
+```bash
+python levels/level1_generic_inference.py --mode summarize --park-code yell
+python levels/level1_generic_inference.py --mode rewrite --park-code dena
+python levels/level1_generic_inference.py --mode classify --text "Can I bring my dog on the trail?"
+python levels/level1_generic_inference.py --mode extract --text "Call the visitor center, check road closures, and pack extra water."
+```
+
+Chainlit UI:
+
+```bash
+chainlit run levels/level1_chainlit_field_guide.py
+```
+
+Try:
+
+```text
+summarize yell
+rewrite dena
+classify Can I bring my dog on the trail?
+extract Call the visitor center, check road closures, and pack extra water.
+```
+
+Optional smoke eval:
+
+```bash
+python evals/level1_smoke_eval.py
+```
+
+## Optional Notebook Walkthroughs
+
+Install notebook dependencies:
+
+```bash
+pip install -r requirements-notebooks.txt
+jupyter lab
+```
+
+Open:
+
+- [notebooks/101/00_setup_and_api.ipynb](notebooks/101/00_setup_and_api.ipynb)
+- [notebooks/101/01_generic_inference.ipynb](notebooks/101/01_generic_inference.ipynb)
+
+The notebooks call into `levels/`; they do not replace the runnable demos.
+
+## Later Setup For Level 3+
+
+PostgreSQL, pgvector, LangChain, and LangGraph are introduced when the curriculum reaches ingestion, retrieval, and agents.
+
+Install the full dependency set:
+
+```bash
+pip install -r requirements-full.txt
+```
+
+Then run PostgreSQL with the pgvector extension in Docker:
 
 ```bash
 docker run -d --name pgvector \
@@ -61,126 +216,35 @@ docker run -d --name pgvector \
   pgvector/pgvector:pg16
 ```
 
-Verify it's running:
+Verify it:
 
 ```bash
 docker exec -it pgvector psql -U postgres -d fieldguide -c "CREATE EXTENSION IF NOT EXISTS vector; SELECT extversion FROM pg_extension WHERE extname = 'vector';"
 ```
 
-### 3. NPS API key
-
-The National Park Service API is free and public.
-
-1. Go to [nps.gov/subjects/developer/get-started.htm](https://www.nps.gov/subjects/developer/get-started.htm)
-2. Fill out the form — key arrives by email within minutes
-3. Save it:
-
-```bash
-export NPS_API_KEY="your-key-here"
-```
-
-Test it:
-
-```bash
-curl -s "https://developer.nps.gov/api/v1/parks?parkCode=yell&limit=1" \
-  -H "X-Api-Key: $NPS_API_KEY" | python3 -m json.tool | head -20
-```
-
-### 4. NVIDIA NIM API key
-
-This curriculum uses [NVIDIA NIM](https://build.nvidia.com) as the LLM and embedding backend. NIM endpoints are OpenAI-compatible, so LangChain, LangGraph, and the `openai` Python library all work with a base URL swap.
-
-1. Go to [build.nvidia.com](https://build.nvidia.com)
-2. Sign in or create a free NVIDIA developer account
-3. Click **Get API Key** and generate a key (starts with `nvapi-`)
-4. Save it:
-
-```bash
-export NVIDIA_API_KEY="nvapi-your-key-here"
-```
-
-Test it:
-
-```bash
-curl -s https://integrate.api.nvidia.com/v1/models \
-  -H "Authorization: Bearer $NVIDIA_API_KEY" | python3 -m json.tool | head -20
-```
-
-The free tier includes 1,000 inference credits on signup. Rate limit is 40 requests per minute.
-
-### 5. Python dependencies
-
-```bash
-pip install \
-  langchain \
-  langchain-nvidia-ai-endpoints \
-  langgraph \
-  chainlit \
-  psycopg2-binary \
-  pgvector \
-  requests \
-  pydantic \
-  python-dotenv
-```
-
-### 6. Environment variables
-
-Create a `.env` file in your project root (and add it to `.gitignore`):
-
-```bash
-NPS_API_KEY=your-nps-key
-NVIDIA_API_KEY=nvapi-your-nvidia-key
-DATABASE_URL=postgresql://postgres:dev@localhost:5432/fieldguide
-```
-
-### 7. Chainlit
-
-Verify Chainlit launches:
-
-```bash
-# create a minimal app.py
-echo 'import chainlit as cl
-
-@cl.on_message
-async def main(message: cl.Message):
-    await cl.Message(content=f"Echo: {message.content}").send()' > app.py
-
-chainlit run app.py
-```
-
-Open [http://localhost:8000](http://localhost:8000) in your browser. Type something. If it echoes back, your UI is ready.
-
-### 8. Verify everything
-
-You should now have:
-
-- [ ] Python 3.11+ with a virtual environment
-- [ ] PostgreSQL + pgvector running in Docker
-- [ ] NPS API key working (curl returns park data)
-- [ ] NVIDIA NIM API key working (curl returns model list)
-- [ ] Chainlit launching and echoing messages
-- [ ] `.env` file with all keys (and `.gitignore`d)
-
-If all six check, you're ready for Level 0 in the curriculum.
-
-## Tech stack
+## Tech Stack
 
 | Layer | Tool |
 |---|---|
 | Language | Python 3.11+ |
-| LLM + Embeddings | NVIDIA NIM (OpenAI-compatible, via [build.nvidia.com](https://build.nvidia.com)) |
+| LLM + Embeddings | OpenAI-compatible providers: NVIDIA NIM, DeepSeek, Ollama/local, or custom |
 | Orchestration | LangGraph |
 | Vector store | PostgreSQL + pgvector |
 | Frontend | Chainlit |
 | Data source | [NPS API](https://www.nps.gov/subjects/developer/api-documentation.htm) |
 
-## Full curriculum
+## Full Curriculum
 
 Read the complete curriculum with learning objectives, NPS API mapping, evaluation guidance, and weekly pacing: **[genai_curriculum.md](genai_curriculum.md)**
 
-## Who this is for
+Supporting docs:
 
-Engineers or technical analysts joining an AI platform team. Comfortable with Python, no prior ML or LLM experience required. Everything else is taught in order.
+- [Start here](START_HERE.md)
+- [Learning tracks](docs/learning_tracks.md)
+- [AI coding assistant playbook](docs/ai_coding_assistant_playbook.md)
+- [Model providers](docs/model_providers.md)
+- [Notebook strategy](docs/notebook_strategy.md)
+- [Spoiler full-build prompts](docs/spoiler_full_build_prompts.md)
 
 ## License
 
