@@ -181,6 +181,30 @@ Optional smoke eval:
 python evals/level1_smoke_eval.py
 ```
 
+### Level 2: Structured extraction
+
+This level is a **learner scaffold** — the repo provides the infrastructure (NPS endpoints, Pydantic schemas, Chainlit UI skeleton). You build the extraction logic using your AI coding assistant with the prompt cards in `docs/ai_coding_assistant_playbook.md`.
+
+CLI (after completing the scaffold):
+
+```bash
+python levels/level2_structured_extraction.py --endpoint parks --park-code yell
+python levels/level2_structured_extraction.py --endpoint alerts --park-code acad
+python levels/level2_structured_extraction.py --endpoint campgrounds --park-code grca
+```
+
+Chainlit UI:
+
+```bash
+chainlit run levels/level2_chainlit_extraction.py
+```
+
+Eval (schema tests pass immediately; extraction tests unlock after building):
+
+```bash
+python evals/level2_schema_eval.py
+```
+
 ## Optional Notebook Walkthroughs
 
 Install notebook dependencies:
